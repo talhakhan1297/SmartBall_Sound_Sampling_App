@@ -3,10 +3,10 @@ from tkinter import messagebox
 import pyaudio
 import wave
 import threading
-import matplotlib
 import numpy as np
+import matplotlib
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import *
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib import style
 
 matplotlib.use("TkAgg")
@@ -26,16 +26,18 @@ class App:
         # Initialized static variables
         self.chunk = 1024  # Record in chunks of 1024 samples
         self.channels = 2
-        self.fs = 48000  # Record at 48000 samples per second
+        self.fs = 44100  # Record at 44100 samples per second
         self.sample_format = pyaudio.paInt16  # 16 bits per sample
 
         # Initialized dynamic variables
         self.radioVal = StringVar()
         self.feedbackVal = StringVar()
         self.rcdStpVal = StringVar()
-        self.rcdStpVal.set('Record')  # Initial value
-        self.radioVal.set('edge')  # Initial value
-        self.feedbackVal.set('')  # Initial value
+        self.rcdStpVal.set('Record')
+        self.radioVal.set('edge')
+        self.feedbackVal.set('')
+        self.x1 = 0
+        self.x2 = 0
 
         try:
             sampleCountFileR = open('sampleCount.txt', "r")
@@ -52,8 +54,9 @@ class App:
             self.count = 0
 
         self.frames = []  # Initialize array to store frames
-        self.intframes = []
+        self.amplitude = []
         self.isrecording = False
+        self.plotPointState = False
         self.p = pyaudio.PyAudio()  # Create an interface to PortAudio
         self.stream = self.p.open(format=self.sample_format, channels=self.channels,
                                   rate=self.fs, frames_per_buffer=self.chunk, input=True)
@@ -133,7 +136,7 @@ class App:
         # Initialized Feedback label
         feedback = Label(textvariable=self.feedbackVal, font=("Montserrat 10"),
                          fg=primaryColor, bg=backgroundColor)
-        feedback.grid(row=4, column=4, sticky='s', pady=10)
+        feedback.grid(row=4, column=4, sticky='s', pady=10, columnspan=2)
 
     # Handle Record/Stop Button
     def rcdStpSelect(self):
@@ -144,9 +147,14 @@ class App:
 
     # Handle Reset Button
     def onReset(self):
-        if self.isrecording == False:
+        if self.frames.__len__() != 0 and self.isrecording == False:
             self.frames = []
             self.a.clear()
+            self.feedbackVal.set('Reset Done')
+        elif self.isrecording == False and self.frames.__len__() == 0:
+            self.feedbackVal.set('Please start recording')
+        else:
+            self.feedbackVal.set('Stop Recording to reset')
 
     # Start Recording
     def startRecording(self):
@@ -160,6 +168,9 @@ class App:
             t = threading.Thread(target=self.record)
             t.start()
             self.feedbackVal.set('Recording ✓')
+        else:
+            self.feedbackVal.set(
+                'Either Save or Reset \nto start recording again')
 
     # Main recording loop
     def record(self):
@@ -177,27 +188,58 @@ class App:
             self.stream.close()
             self.p.terminate()  # Terminate the PortAudio interface
 
-            amplitude = np.frombuffer(self.frames, np.int16)
-            self.a.plot(amplitude)
+            point = self.fig.canvas.mpl_connect(
+                'button_press_event', self.onClickPlot)
+            self.amplitude = np.frombuffer(self.frames, np.int16)
+            self.a.plot(self.amplitude)
             self.plotCanvas.draw()
             self.feedbackVal.set('Stopped ✓')
 
+    # When plot is clicked
+
+    def onClickPlot(self, event):
+        x = event.xdata
+        self.x1 = x - self.fs * 3  # / 1000 * 10
+        self.x2 = x + self.fs * 3  # / 1000 * 10
+        print("pt: ", x, ', x1: ', self.x1, ', x2: ', self.x2)
+
     # Handle radio selection
     def radioSelect(self):
+        # self.plotPointState check is plotPoint has been taken or not
         if self.frames.__len__() != 0 and self.isrecording == False:
             self.fileName = str(self.count) + '_' + \
                 self.radioVal.get() + '.wav'
-            self.feedbackVal.set('Selected ✓')
+            self.feedbackVal.set('Label Selected ✓')
+        elif self.isrecording == True:
+            self.feedbackVal.set('Please stop recording')
+        elif self.frames.__len__() == 0:
+            self.feedbackVal.set('Please start recording')
 
     # This executes on save button press and saves the file with the name chosen through radio buttons
     # Save the recorded data as a WAV file
+
     def save(self):
-        if self.frames.__len__() != 0 and self.fileName != '' and self.isrecording == False:
+        if self.isrecording == True:
+            self.feedbackVal.set('Please stop recording')
+
+        elif self.frames.__len__() == 0:
+            self.feedbackVal.set('Please start recording')
+
+        elif self.fileName == '':
+            self.feedbackVal.set('Please select a label')
+
+        else:
             wf = wave.open(self.fileName, 'wb')
             wf.setnchannels(self.channels)
             wf.setsampwidth(self.p.get_sample_size(self.sample_format))
             wf.setframerate(self.fs)
-            wf.writeframes(self.frames)
+
+            a = int(self.x1)
+            b = int(self.x2)
+
+            clippedData = self.amplitude[a:b]
+
+            wf.writeframes(clippedData)
             wf.close()
 
             self.count = self.count + 1
