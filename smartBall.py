@@ -5,22 +5,12 @@ import wave
 import threading
 import matplotlib
 import numpy as np
-import matplotlib.animation as animation
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import *
 from matplotlib import style
 
 matplotlib.use("TkAgg")
 style.use('ggplot')
-
-f = Figure(figsize=(9, 3), dpi=100)
-a = f.add_subplot(111)
-intframes = []
-
-
-def animate(i):
-    a.clear()
-    a.plot(intframes)
 
 
 class App:
@@ -43,6 +33,7 @@ class App:
         self.radioVal = StringVar()
         self.count = 0
         self.frames = []  # Initialize array to store frames
+        self.intframes = []
         self.isrecording = False
         self.p = pyaudio.PyAudio()  # Create an interface to PortAudio
         self.stream = self.p.open(format=self.sample_format, channels=self.channels,
@@ -55,9 +46,14 @@ class App:
         master.resizable(False, False)
         master.config(bg=backgroundColor)
 
+        self.fig = Figure(figsize=(9, 3), dpi=100)
+        self.a = self.fig.add_subplot(111)
+
         # Initialized Plot
-        plotCanvas = FigureCanvasTkAgg(f, master)
-        plotCanvas.get_tk_widget().grid(row=0, padx=(45, 45), pady=(24, 24), columnspan=5)
+        self.plotCanvas = FigureCanvasTkAgg(self.fig, master)
+        self.plotCanvas.draw()
+        self.plotCanvas.get_tk_widget().grid(
+            row=0, padx=(45, 45), pady=(24, 24), columnspan=5)
 
         # Initialized Record Button
         recordBtn = Button(master, text='Record', font=(
@@ -113,6 +109,7 @@ class App:
         saveBtn.grid(row=4, column=2, pady=(24, 5), padx=15)
 
     # Handle radio selection
+
     def radioSelect(self):
         if self.frames.__len__() != 0 and self.isrecording == False:
             self.fileName = str(self.count) + '_' + \
@@ -138,7 +135,7 @@ class App:
             intData = np.frombuffer(
                 self.stream.read(self.chunk), dtype=np.int16)
 
-            intframes.append(intData)
+            self.intframes.append(intData)
             self.frames.append(data)
 
     # Stop Recording and close the stream
@@ -148,6 +145,11 @@ class App:
             self.stream.stop_stream()
             self.stream.close()
             self.p.terminate()  # Terminate the PortAudio interface
+
+            # self.fig = Figure(figsize=(9, 3), dpi=100)
+            # self.a = self.fig.add_subplot(111)
+            self.a.plot(self.intframes)
+            self.plotCanvas.draw()
 
             print('Finished recording')
 
@@ -170,5 +172,4 @@ class App:
 
 root = Tk()
 gui = App(root)
-ani = animation.FuncAnimation(f, animate, interval=100)
 root.mainloop()
