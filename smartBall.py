@@ -25,7 +25,7 @@ class App:
 
         # Initialized static variables
         self.chunk = 1024  # Record in chunks of 1024 samples
-        self.channels = 2
+        self.channels = 1
         self.fs = 44100  # Record at 44100 samples per second
         self.sample_format = pyaudio.paInt16  # 16 bits per sample
 
@@ -55,6 +55,8 @@ class App:
 
         self.frames = []  # Initialize array to store frames
         self.amplitude = []
+        self.seconds = []
+        self.point = 0
         self.isrecording = False
         self.plotPointState = False
         self.p = pyaudio.PyAudio()  # Create an interface to PortAudio
@@ -71,7 +73,7 @@ class App:
         self.fig = Figure(figsize=(16, 5), dpi=60)
         self.a = self.fig.add_subplot(111)
         self.a.set_title('Graph of Recorded Sound')
-        self.a.set_xlabel('No. of Samples')
+        self.a.set_xlabel('Seconds')
         self.a.set_ylabel('Amplitude')
 
         # Initialized Plot
@@ -150,6 +152,7 @@ class App:
         if self.frames.__len__() != 0 and self.isrecording == False:
             self.frames = []
             self.a.clear()
+            self.plotPointState = False
             self.feedbackVal.set('Reset Done')
         elif self.isrecording == False and self.frames.__len__() == 0:
             self.feedbackVal.set('Please start recording')
@@ -180,6 +183,7 @@ class App:
         self.frames = b''.join(self.frames)
 
     # Stop Recording and close the stream
+
     def stopRecording(self):
         if self.isrecording:
             self.rcdStpVal.set('Record')
@@ -188,32 +192,48 @@ class App:
             self.stream.close()
             self.p.terminate()  # Terminate the PortAudio interface
 
-            point = self.fig.canvas.mpl_connect(
+            self.point = self.fig.canvas.mpl_connect(
                 'button_press_event', self.onClickPlot)
             self.amplitude = np.frombuffer(self.frames, np.int16)
-            self.a.plot(self.amplitude)
+            self.seconds = np.arange(self.amplitude.__len__()) / self.fs
+            self.a.plot(self.seconds, self.amplitude)
             self.plotCanvas.draw()
             self.feedbackVal.set('Stopped ✓')
 
     # When plot is clicked
 
     def onClickPlot(self, event):
-        x = event.xdata
-        self.x1 = x - self.fs * 3  # / 1000 * 10
-        self.x2 = x + self.fs * 3  # / 1000 * 10
-        print("pt: ", x, ', x1: ', self.x1, ', x2: ', self.x2)
+        if self.isrecording == True:
+            self.feedbackVal.set('Please stop Recording')
+
+        elif self.frames.__len__() == 0:
+            self.feedbackVal.set('Please start Recording')
+
+        else:
+            x = event.xdata * self.fs
+            self.x1 = x - self.fs / 1000 * 500
+            self.x2 = x + self.fs / 1000 * 500
+            self.plotPointState = True
+            self.feedbackVal.set('Point Selected')
+            print("pt: ", x, ', x1: ', self.x1, ', x2: ', self.x2)
+            self.fig.canvas.mpl_disconnect(self.point)
 
     # Handle radio selection
     def radioSelect(self):
         # self.plotPointState check is plotPoint has been taken or not
-        if self.frames.__len__() != 0 and self.isrecording == False:
+        if self.isrecording == True:
+            self.feedbackVal.set('Please stop recording')
+
+        elif self.frames.__len__() == 0:
+            self.feedbackVal.set('Please start recording')
+
+        elif self.plotPointState == False:
+            self.feedbackVal.set('Please select a point \nin the graph')
+
+        else:
             self.fileName = str(self.count) + '_' + \
                 self.radioVal.get() + '.wav'
             self.feedbackVal.set('Label Selected ✓')
-        elif self.isrecording == True:
-            self.feedbackVal.set('Please stop recording')
-        elif self.frames.__len__() == 0:
-            self.feedbackVal.set('Please start recording')
 
     # This executes on save button press and saves the file with the name chosen through radio buttons
     # Save the recorded data as a WAV file
@@ -236,10 +256,13 @@ class App:
 
             a = int(self.x1)
             b = int(self.x2)
+            print(a, ': a, ', b, ': b')
 
             clippedData = self.amplitude[a:b]
+            print(clippedData.__len__(), 'Clipped Data')
 
             wf.writeframes(clippedData)
+            # wf.writeframes(self.amplitude)
             wf.close()
 
             self.count = self.count + 1
@@ -250,6 +273,7 @@ class App:
             self.frames = []
             self.fileName = ''
             self.a.clear()
+            self.plotPointState = False
             self.feedbackVal.set('Saved ✓')
 
 
