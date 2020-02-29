@@ -56,6 +56,8 @@ class App:
         self.frames = []  # Initialize array to store frames
         self.amplitude = []
         self.seconds = []
+        self.clippedData = []
+        self.clippedSeconds = []
         self.point = 0
         self.isrecording = False
         self.plotPointState = False
@@ -95,7 +97,7 @@ class App:
         resetBtn.grid(row=1, column=2, sticky='e')
 
         # Initialized Label
-        note = Label(text="Please select a label for video file.", font=("Montserrat 13"),
+        note = Label(text="Please select a label for audio file.", font=("Montserrat 13"),
                           fg=primaryColor, bg=backgroundColor)
         note.grid(row=2, columnspan=5, padx=36, pady=(40, 16))
 
@@ -152,6 +154,7 @@ class App:
         if self.frames.__len__() != 0 and self.isrecording == False:
             self.frames = []
             self.a.clear()
+            self.plotCanvas.draw()
             self.plotPointState = False
             self.feedbackVal.set('Reset Done')
         elif self.isrecording == False and self.frames.__len__() == 0:
@@ -162,6 +165,9 @@ class App:
     # Start Recording
     def startRecording(self):
         if self.isrecording == False and self.frames.__len__() == 0:
+            self.a.clear()
+            self.plotCanvas.draw()
+
             self.rcdStpVal.set('Stop')
             self.p = pyaudio.PyAudio()  # Create an interface to PortAudio
             self.stream = self.p.open(format=self.sample_format, channels=self.channels,
@@ -197,6 +203,9 @@ class App:
             self.amplitude = np.frombuffer(self.frames, np.int16)
             self.seconds = np.arange(self.amplitude.__len__()) / self.fs
             self.a.plot(self.seconds, self.amplitude)
+            self.a.set_title('Graph of Recorded Sound')
+            self.a.set_xlabel('Seconds')
+            self.a.set_ylabel('Amplitude')
             self.plotCanvas.draw()
             self.feedbackVal.set('Stopped ✓')
 
@@ -258,10 +267,10 @@ class App:
             b = int(self.x2)
             print(a, ': a, ', b, ': b')
 
-            clippedData = self.amplitude[a:b]
-            print(clippedData.__len__(), 'Clipped Data')
+            self.clippedData = self.amplitude[a:b]
+            print(self.clippedData.__len__(), 'Clipped Data')
 
-            wf.writeframes(clippedData)
+            wf.writeframes(self.clippedData)
             # wf.writeframes(self.amplitude)
             wf.close()
 
@@ -275,6 +284,13 @@ class App:
             self.a.clear()
             self.plotPointState = False
             self.feedbackVal.set('Saved ✓')
+            self.clippedSeconds = np.arange(
+                self.clippedData.__len__()) / self.fs
+            self.a.set_title('Graph of Recorded Sound')
+            self.a.set_xlabel('Seconds')
+            self.a.set_ylabel('Amplitude')
+            self.a.plot(self.clippedSeconds, self.clippedData)
+            self.plotCanvas.draw()
 
 
 root = Tk()
