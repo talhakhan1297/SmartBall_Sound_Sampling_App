@@ -220,8 +220,8 @@ class App:
 
         else:
             x = event.xdata * self.fs
-            self.x1 = x - self.fs / 1000 * 500
-            self.x2 = x + self.fs / 1000 * 500
+            self.x1 = x - self.fs / 1000 * 25
+            self.x2 = x + self.fs / 1000 * 25
             self.plotPointState = True
             self.feedbackVal.set('Point Selected')
             print("pt: ", x, ', x1: ', self.x1, ', x2: ', self.x2)
